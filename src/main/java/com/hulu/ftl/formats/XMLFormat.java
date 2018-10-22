@@ -38,7 +38,7 @@ public class XMLFormat extends Parser {
         String[] rootSelectors = selectors.clone();
 
         for(int x=0; x<rootSelectors.length; x++) {
-            rootSelectors[x] = "/*/" + rootSelectors[x];
+            rootSelectors[x] = rootSelectors[x].equals("/") ? "/" : "/*/" + rootSelectors[x];
         }
 
 
@@ -46,18 +46,14 @@ public class XMLFormat extends Parser {
     }
 
     public ArrayList<Node> findNodes(String[] selectors, Node document) {
-        ArrayList nodes = null;
-
-        nodes = nodeArray("/*", document);
+        ArrayList nodes = new ArrayList();
 
         for (int x = 0; x < selectors.length; x++) {
             String selector = selectors[x];
 
-            nodes = nodeArray(selector, document);
+            nodes.addAll(nodeArray(selector, document));
 
-            if (nodes.size() > 0) {
-                return nodes;
-            }
+
         }
 
         return nodes;
@@ -113,8 +109,8 @@ public class XMLFormat extends Parser {
 
         if(values.size() > 0) {
             return values.get(0);
-        } else if (isTemplate(field.selectors)) {
-            return field.selectors[0];
+        } else if (isSpecialValue(field)) {
+            return field.annotation;
         }
 
         return null;
@@ -128,26 +124,39 @@ public class XMLFormat extends Parser {
     }
 
     public List getValues(FTLField field, List<Node> rootNodes) {
+        if (isSpecialValue(field)) {
+            return Collections.singletonList(field.annotation);
+        }
 
         if(field.hasSubFields()) {
             List list = new ArrayList<>();
 
             for(Node rootNode : rootNodes) {
                 HashMap subMap = new HashMap<>();
+                int normalValueNum = 0;
 
                 for(FTLField subField : field.subSelectors) {
 
                     ArrayList<Node> nodes = findNodes(subField.selectors, rootNode);
 
+                    // FIX
                     List values = getValues(subField, Collections.singletonList(rootNode));
-                    if(values.size() > 0) {
-                        subMap.put(subField.key, values.get(0));
-                    } else if (isTemplate(subField.selectors)) {
-                        subMap.put(subField.key, subField.selectors[0]);
-                    }
 
+                    if(values.size() > 0) {
+                        if (!isSpecialValue(subField))
+                            ++normalValueNum;
+
+                        if (subField.isMultiValue) {
+                            subMap.put(subField.key, values);
+                        } else {
+                            subMap.put(subField.key, values.get(0));
+                        }
+                    } else if (isSpecialValue(subField)) {
+                        subMap.put(subField.key, field.annotation);
+                    }
                 }
-                list.add(subMap);
+                if (normalValueNum > 0)
+                    list.add(subMap);
             }
 
             return list;
@@ -155,11 +164,7 @@ public class XMLFormat extends Parser {
         } else {
 
             // find element text
-            List values = getBySelector("./text()", rootNodes);
-
-            if(values.size() > 0) {
-                return values;
-            }
+            List values = new ArrayList();
 
             // Not found, look for attr
             for(String selector : field.selectors) {
@@ -178,26 +183,22 @@ public class XMLFormat extends Parser {
 
                     attrSelector += "@" + elements[end];
 
-                    values = getBySelector(attrSelector);
-                    values.addAll(getBySelector(attrSelector, rootNodes));
-                    values.addAll(getBySelector(selector + "/text()", rootNodes));
+                    values.addAll(getBySelector(attrSelector));
+                    if (values.size() == 0)
+                        values.addAll(getBySelector(attrSelector, rootNodes));
+                    if (values.size() == 0)
+                        values.addAll(getBySelector(selector + "/text()", rootNodes));
+                    if (values.size() == 0)
+                        values.addAll(getBySelector("./text()", rootNodes));
+
 
                     if(values.size() > 0) {
                         return values;
                     }
                 }
             }
-
         }
 
         return new ArrayList();
-    }
-
-    private boolean isTemplate(String[] selectors) {
-        boolean result = false;
-        for (String selector : selectors) {
-            result = result || selector.contains("$");
-        }
-        return result;
     }
 }

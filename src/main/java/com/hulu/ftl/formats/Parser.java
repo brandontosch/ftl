@@ -1,6 +1,8 @@
 package com.hulu.ftl.formats;
 
 import com.hulu.ftl.FTLField;
+import com.hulu.ftl.annotations.Annotation;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -15,16 +17,7 @@ public abstract class Parser {
         Map map = new HashMap<>();
 
         for(FTLField field : fields) {
-            for(String selector : field.selectors) {
-
-                map.put(field.key,
-                    field.isMultiValue ? getValues(field) : getValue(field)
-                );
-
-                if(map.get(selector) != null)
-                    continue;
-
-            }
+            addToMap(map, field);
         }
 
         for(FTLField field : fields) {
@@ -47,20 +40,9 @@ public abstract class Parser {
         return list;
     }
 
-    private String template(Map map, String input) {
-        for (Object item : map.entrySet()) {
-            Map.Entry entry = (Map.Entry)item;
-            Object value = entry.getValue();
-            if (value != null) {
-                input = input.replace("$" + entry.getKey(), value.toString());
-            }
-        }
-        return input;
-    }
-
     private Object postprocess(Object value, Map localContext) {
-        if (value instanceof String) {
-            return template(localContext, (String) value);
+        if (value instanceof Annotation) {
+            return ((Annotation)value).getValue(localContext);
         } else if (value instanceof List) {
             List list = (List)value;
             for (int index = 0; index < list.size(); ++index) {
@@ -75,7 +57,25 @@ public abstract class Parser {
             }
             return valueMap;
         }
-        return null;
+        return value;
     }
 
+    private void addToMap(Map map, FTLField field) {
+        if (field.isMultiValue) {
+            List values = (List)map.get(field.key);
+            if (values != null) {
+                values.addAll(getValues(field));
+            } else {
+                values = getValues(field);
+            }
+            map.put(field.key, values);
+        } else {
+            map.put(field.key, getValue(field));
+        }
+
+    }
+
+    boolean isSpecialValue(FTLField field) {
+        return field.annotation != null;
+    }
 }

@@ -15,7 +15,7 @@ public class ProgramTests {
 
     @Before
     public void initialize() throws Exception {
-        FTLDefinition definition = new FTLDefinition("movie.ftl");
+        FTLDefinition definition = new FTLDefinition("program.ftl");
         program =  definition.parse(new File("movie.xml"));
     }
 
@@ -52,7 +52,7 @@ public class ProgramTests {
     public void multiValueReturnsOne() {
         ArrayList genres = (ArrayList) program.get("genres");
         assertEquals(1, genres.size());
-        assertEquals("Sitcom", genres.get(0));
+        assertEquals("Sitcom", ((Map)genres.get(0)).get("name"));
     }
 
 }
